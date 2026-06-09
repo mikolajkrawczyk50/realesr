@@ -1,0 +1,79 @@
+#!/usr/bin/env python3
+from tinygrad import Tensor, TinyJit
+from model import RealESRGAN_x4plus
+import numpy as np
+from PIL import Image
+import os
+from tqdm import tqdm
+
+def load_image(path):
+    img = Image.open(path).convert('RGB')
+    return np.array(img).astype(np.float32) / 255.0
+
+def save_image(arr, path):
+    arr = (np.clip(arr, 0, 1) * 255).astype(np.uint8)
+    Image.fromarray(arr).save(path)
+
+def inference_tiled(model_path, input_path, output_path, tile=128, scale=4):
+    model = RealESRGAN_x4plus()
+    model.load_weights(model_path)
+
+    img = load_image(input_path)
+    H, W = img.shape[:2]
+    print(f"Image: {W}x{H}, Tile: {tile}, Scale: {scale}")
+
+    H_pad = ((H + tile - 1) // tile) * tile
+    W_pad = ((W + tile - 1) // tile) * tile
+    img_padded = np.pad(img, ((0, H_pad - H), (0, W_pad - W), (0, 0)), mode='reflect')
+
+    output_h, output_w = H_pad * scale, W_pad * scale
+    output = np.zeros((output_h, output_w, 3), dtype=np.float32)
+
+    jit = model.get_jitted()
+    x = Tensor.rand(1, 3, tile, tile)
+    jit(x).numpy()
+    print("JIT warmup done")
+
+    tiles = [(y_start, x_start) for y_start in range(0, H_pad, tile) for x_start in range(0, W_pad, tile)]
+    for y_start, x_start in tqdm(tiles, desc="Tiles"):
+            y_end = min(y_start + tile, H_pad)
+            x_end = min(x_start + tile, W_pad)
+
+            input_tile = img_padded[y_start:y_end, x_start:x_end]
+
+            if input_tile.shape[0] < tile or input_tile.shape[1] < tile:
+                tile_cur = np.zeros((tile, tile, 3), dtype=np.float32)
+                tile_cur[:input_tile.shape[0], :input_tile.shape[1]] = input_tile
+                input_tile = tile_cur
+
+            x_tensor = Tensor(input_tile.transpose(2, 0, 1)[None])
+            output_tile = jit(x_tensor).numpy()[0].transpose(1, 2, 0)
+
+            output[y_start * scale:y_end * scale, x_start * scale:x_end * scale] = output_tile[:(y_end - y_start) * scale, :(x_end - x_start) * scale]
+
+    output = output[:H * scale, :W * scale]
+    save_image(output, output_path)
+    print(f"Saved {output_path} ({output.shape[1]}x{output.shape[0]})")
+
+def inference(model_path, input_path, output_path, tile=128):
+    if tile > 0:
+        inference_tiled(model_path, input_path, output_path, tile=tile)
+    else:
+        model = RealESRGAN_x4plus()
+        model.load_weights(model_path)
+        img = load_image(input_path)
+        x = Tensor(img.transpose(2, 0, 1)[None])
+        y = model(x)
+        out = y[0].numpy().transpose(1, 2, 0)
+        save_image(out, output_path)
+        print(f"Saved {output_path} ({out.shape[1]}x{out.shape[0]})")
+
+if __name__ == "__main__":
+    import sys
+    if os.environ.get("DEV") == "CL":
+        os.environ["CL"] = "1"
+    if len(sys.argv) >= 4:
+        tile = int(sys.argv[4]) if len(sys.argv) > 4 else 128
+        inference(sys.argv[1], sys.argv[2], sys.argv[3], tile=tile)
+    else:
+        print("Usage: python inference.py <model.pth> <input.png> <output.png> [tile]")
