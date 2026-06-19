@@ -1,0 +1,49 @@
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Generated images and media at root
+/*.png
+/*.jpg
+/*.jpeg
+/*.bmp
+/*.tiff
+/*.webp
+/*.mp4
+/*.avi
+/*.mov
+
+# exceptions for examples (if we ever add an examples/ dir)
+# !examples/
+
+# Virtual environments
+venv/
+.env/
+.venv/
+env/
+ENV/
+
+# IDEs and editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Model weights that are not tracked via LFS
+weights/*.pth
+weights/*.pt
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
