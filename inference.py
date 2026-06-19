@@ -73,11 +73,15 @@ def inference(model_path, input_path, output_path, tile=128, bleed=10):
 
 if __name__ == "__main__":
     import sys
-    if os.environ.get("DEV") == "CL":
-        os.environ["CL"] = "1"
-    if len(sys.argv) >= 4:
-        tile = int(sys.argv[4]) if len(sys.argv) > 4 else 128
-        bleed = int(sys.argv[5]) if len(sys.argv) > 5 else 10
-        inference(sys.argv[1], sys.argv[2], sys.argv[3], tile=tile, bleed=bleed)
+    import os
+
+    DEFAULT_MODEL = os.path.join(os.path.dirname(__file__), "weights", "RealESRGAN_x4plus.safetensors")
+
+    if len(sys.argv) >= 3:
+        input_path = sys.argv[1]
+        output_path = sys.argv[2]
+        tile = int(sys.argv[3]) if len(sys.argv) > 3 else 128
+        inference(DEFAULT_MODEL, input_path, output_path, tile=tile)
     else:
-        print("Usage: python inference.py <model.safetensors> <input.png> <output.png> [tile] [bleed]")
+        print(f"Usage: python inference.py <input.png> <output.png> [tile]")
+        print(f"  tile: {128} (default), set to 0 for full-image inference")
