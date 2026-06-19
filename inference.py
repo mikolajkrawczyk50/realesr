@@ -80,4 +80,4 @@ if __name__ == "__main__":
         bleed = int(sys.argv[5]) if len(sys.argv) > 5 else 10
         inference(sys.argv[1], sys.argv[2], sys.argv[3], tile=tile, bleed=bleed)
     else:
-        print("Usage: python inference.py <model.pth> <input.png> <output.png> [tile] [bleed]")
+        print("Usage: python inference.py <model.safetensors> <input.png> <output.png> [tile] [bleed]")

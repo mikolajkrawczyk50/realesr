@@ -1,6 +1,5 @@
 from tinygrad import Tensor, nn, TinyJit
 from tinygrad.nn.state import safe_save, safe_load, get_state_dict, load_state_dict
-import numpy as np
 
 def pixel_shuffle(x: Tensor, upscale_factor: int) -> Tensor:
     B, C, H, W = x.shape
@@ -99,27 +98,11 @@ class RealESRGAN_x4plus:
         return self.jitted
 
     def load_weights(self, path: str):
-        import torch
-        state = torch.load(path, map_location='cpu')
-        params = state['params_ema']
-        state_dict = get_state_dict(self.model)
-        for k in state_dict.keys():
-            pytorch_key = k.replace('model.', '')
-            if pytorch_key in params and isinstance(params[pytorch_key], torch.Tensor):
-                state_dict[k].assign(params[pytorch_key].numpy())
+        weights = safe_load(path)
+        load_state_dict(self.model, weights)
 
     def save_weights(self, path: str):
         safe_save(get_state_dict(self.model), path)
-
-def convert_pytorch_weights(pytorch_path: str, output_path: str):
-    import torch
-    state = torch.load(pytorch_path, map_location='cpu')
-    params = state['params_ema']
-    td = {}
-    for k, v in params.items():
-        if isinstance(v, torch.Tensor):
-            td[k] = v.numpy()
-    safe_save(td, output_path)
 
 if __name__ == "__main__":
     model = RealESRGAN_x4plus()

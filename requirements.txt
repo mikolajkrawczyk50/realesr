@@ -1,5 +1,4 @@
-torch
-torchvision
+tinygrad
 numpy
 Pillow
 tqdm
