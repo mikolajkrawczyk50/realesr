@@ -14,50 +14,53 @@ def save_image(arr, path):
     arr = (np.clip(arr, 0, 1) * 255).astype(np.uint8)
     Image.fromarray(arr).save(path)
 
-def inference_tiled(model_path, input_path, output_path, tile=128, scale=4):
+def inference_tiled(model_path, input_path, output_path, tile=128, bleed=10, scale=4):
     model = RealESRGAN_x4plus()
     model.load_weights(model_path)
 
     img = load_image(input_path)
     H, W = img.shape[:2]
-    print(f"Image: {W}x{H}, Tile: {tile}, Scale: {scale}")
+    print(f"Image: {W}x{H}, Tile: {tile}, Bleed: {bleed}, Scale: {scale}")
+
+    # to keep tile size with bleed embedded
+    tile = tile - (2 * bleed)
 
     H_pad = ((H + tile - 1) // tile) * tile
     W_pad = ((W + tile - 1) // tile) * tile
-    img_padded = np.pad(img, ((0, H_pad - H), (0, W_pad - W), (0, 0)), mode='reflect')
+    img_padded = np.pad(img, ((bleed, H_pad - H + bleed), (bleed, W_pad - W + bleed), (0, 0)), mode='reflect')
 
     output_h, output_w = H_pad * scale, W_pad * scale
     output = np.zeros((output_h, output_w, 3), dtype=np.float32)
 
     jit = model.get_jitted()
-    x = Tensor.rand(1, 3, tile, tile)
-    jit(x).numpy()
-    print("JIT warmup done")
+    # x = Tensor.rand(1, 3, tile + 2 * bleed, tile + 2 * bleed)
+    # jit(x).numpy()
+    # print("JIT warmup done")
 
     tiles = [(y_start, x_start) for y_start in range(0, H_pad, tile) for x_start in range(0, W_pad, tile)]
     for y_start, x_start in tqdm(tiles, desc="Tiles"):
             y_end = min(y_start + tile, H_pad)
             x_end = min(x_start + tile, W_pad)
 
-            input_tile = img_padded[y_start:y_end, x_start:x_end]
+            tile_h = y_end - y_start
+            tile_w = x_end - x_start
 
-            if input_tile.shape[0] < tile or input_tile.shape[1] < tile:
-                tile_cur = np.zeros((tile, tile, 3), dtype=np.float32)
-                tile_cur[:input_tile.shape[0], :input_tile.shape[1]] = input_tile
-                input_tile = tile_cur
+            input_tile = img_padded[y_start:y_end + 2 * bleed, x_start:x_end + 2 * bleed]
 
             x_tensor = Tensor(input_tile.transpose(2, 0, 1)[None])
+            # print(x_tensor)
             output_tile = jit(x_tensor).numpy()[0].transpose(1, 2, 0)
 
-            output[y_start * scale:y_end * scale, x_start * scale:x_end * scale] = output_tile[:(y_end - y_start) * scale, :(x_end - x_start) * scale]
+            output[y_start * scale:y_end * scale, x_start * scale:x_end * scale] = \
+                output_tile[bleed * scale:(bleed + tile_h) * scale, bleed * scale:(bleed + tile_w) * scale]
 
     output = output[:H * scale, :W * scale]
     save_image(output, output_path)
     print(f"Saved {output_path} ({output.shape[1]}x{output.shape[0]})")
 
-def inference(model_path, input_path, output_path, tile=128):
+def inference(model_path, input_path, output_path, tile=128, bleed=10):
     if tile > 0:
-        inference_tiled(model_path, input_path, output_path, tile=tile)
+        inference_tiled(model_path, input_path, output_path, tile=tile, bleed=bleed)
     else:
         model = RealESRGAN_x4plus()
         model.load_weights(model_path)
@@ -74,6 +77,7 @@ if __name__ == "__main__":
         os.environ["CL"] = "1"
     if len(sys.argv) >= 4:
         tile = int(sys.argv[4]) if len(sys.argv) > 4 else 128
-        inference(sys.argv[1], sys.argv[2], sys.argv[3], tile=tile)
+        bleed = int(sys.argv[5]) if len(sys.argv) > 5 else 10
+        inference(sys.argv[1], sys.argv[2], sys.argv[3], tile=tile, bleed=bleed)
     else:
-        print("Usage: python inference.py <model.pth> <input.png> <output.png> [tile]")
+        print("Usage: python inference.py <model.pth> <input.png> <output.png> [tile] [bleed]")
