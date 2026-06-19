@@ -14,9 +14,7 @@ def save_image(arr, path):
     arr = (np.clip(arr, 0, 1) * 255).astype(np.uint8)
     Image.fromarray(arr).save(path)
 
-def inference_tiled(model_path, input_path, output_path, tile=128, bleed=10, scale=4):
-    model = RealESRGAN_x4plus()
-    model.load_weights(model_path)
+def inference_tiled(model, input_path, output_path, tile=128, bleed=10, scale=4):
 
     img = load_image(input_path)
     H, W = img.shape[:2]
@@ -58,12 +56,14 @@ def inference_tiled(model_path, input_path, output_path, tile=128, bleed=10, sca
     save_image(output, output_path)
     print(f"Saved {output_path} ({output.shape[1]}x{output.shape[0]})")
 
-def inference(model_path, input_path, output_path, tile=128, bleed=10):
-    if tile > 0:
-        inference_tiled(model_path, input_path, output_path, tile=tile, bleed=bleed)
-    else:
-        model = RealESRGAN_x4plus()
+def inference(model_path, input_path, output_path, tile=128, bleed=10, skip_weights=False):
+    model = RealESRGAN_x4plus()
+    if not skip_weights:
         model.load_weights(model_path)
+
+    if tile > 0:
+        inference_tiled(model, input_path, output_path, tile=tile, bleed=bleed)
+    else:
         img = load_image(input_path)
         x = Tensor(img.transpose(2, 0, 1)[None])
         y = model(x)
@@ -81,7 +81,9 @@ if __name__ == "__main__":
         input_path = sys.argv[1]
         output_path = sys.argv[2]
         tile = int(sys.argv[3]) if len(sys.argv) > 3 else 128
-        inference(DEFAULT_MODEL, input_path, output_path, tile=tile)
+        skip_weights = "--random-weights" in sys.argv
+        inference(DEFAULT_MODEL, input_path, output_path, tile=tile, skip_weights=skip_weights)
     else:
-        print(f"Usage: python inference.py <input.png> <output.png> [tile]")
+        print(f"Usage: python inference.py <input.png> <output.png> [tile] [--random-weights]")
         print(f"  tile: {128} (default), set to 0 for full-image inference")
+        print(f"  --random-weights: skip loading weights (random init, for testing)")
