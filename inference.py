@@ -72,18 +72,16 @@ def inference(model_path, input_path, output_path, tile=128, bleed=10, skip_weig
         print(f"Saved {output_path} ({out.shape[1]}x{out.shape[0]})")
 
 if __name__ == "__main__":
-    import sys
+    import argparse
     import os
 
     DEFAULT_MODEL = os.path.join(os.path.dirname(__file__), "weights", "RealESRGAN_x4plus.safetensors")
 
-    if len(sys.argv) >= 3:
-        input_path = sys.argv[1]
-        output_path = sys.argv[2]
-        tile = int(sys.argv[3]) if len(sys.argv) > 3 else 128
-        skip_weights = "--random-weights" in sys.argv
-        inference(DEFAULT_MODEL, input_path, output_path, tile=tile, skip_weights=skip_weights)
-    else:
-        print(f"Usage: python inference.py <input.png> <output.png> [tile] [--random-weights]")
-        print(f"  tile: {128} (default), set to 0 for full-image inference")
-        print(f"  --random-weights: skip loading weights (random init, for testing)")
+    parser = argparse.ArgumentParser(description="RealESRGAN inference")
+    parser.add_argument("input", help="input image path")
+    parser.add_argument("output", help="output image path")
+    parser.add_argument("--tile", type=int, default=128, help="tile size (default: 128, 0 for full-image)")
+    parser.add_argument("--random-weights", action="store_true", help="skip loading weights")
+    args = parser.parse_args()
+
+    inference(DEFAULT_MODEL, args.input, args.output, tile=args.tile, skip_weights=args.random_weights)
